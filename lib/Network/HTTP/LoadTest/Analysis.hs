@@ -12,7 +12,6 @@ module Network.HTTP.LoadTest.Analysis
 
 import Criterion.Analysis (SampleAnalysis, analyseSample)
 import Network.HTTP.LoadTest.Types (Analysis(..), Basic(..), Summary(..))
-import Prelude hiding (catch)
 import Statistics.Quantile (weightedAvg)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G

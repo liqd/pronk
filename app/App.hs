@@ -8,7 +8,6 @@ import Control.Concurrent.MVar
 import Control.DeepSeq (rnf)
 import Control.Exception (bracket, catch, evaluate, finally)
 import Control.Monad (forM_, unless)
-import Control.Monad.Trans.Resource (ResourceT)
 import Data.Aeson ((.=), encode, object)
 import Data.Char (toLower)
 import Data.Maybe (catMaybes)
@@ -23,7 +22,6 @@ import Network.HTTP.LoadTest.Environment (environment)
 import Network.HTTP.LoadTest.Report
 import Network.Socket (withSocketsDo)
 import Paths_pronk (version)
-import Prelude hiding (catch)
 import System.CPUTime (getCPUTime)
 import System.Console.CmdArgs
 import System.Exit (ExitCode(ExitFailure), exitWith)
@@ -95,7 +93,7 @@ defaultArgs = Args {
                 &= summary ("Pronk " ++ pronk_version ++
                             " - a modern HTTP load tester")
 
-fromArgs :: Args -> E.Request (ResourceT IO) -> LoadTest.Config
+fromArgs :: Args -> E.Request -> LoadTest.Config
 fromArgs Args{..} req =
     LoadTest.Config {
       LoadTest.concurrency = concurrency
@@ -158,7 +156,7 @@ validateArgs Args{..} = do
   forM_ problems $ hPutStrLn stderr . ("Error: " ++)
   unless (null problems) $ exitWith (ExitFailure 1)
 
-createRequest :: Args -> IO (E.Request (ResourceT IO))
+createRequest :: Args -> IO E.Request
 createRequest Args{..} = do
   req0 <- E.parseUrl url `catch` \(e::E.HttpException) ->
           fatal $ "could not parse URL - " ++
@@ -169,7 +167,7 @@ createRequest Args{..} = do
       check (Just "POST") = return "POST"
       check (Just "PUT")  = return "PUT"
       check _      = fatal "only POST or PUT may have a body"
-      req = req0 { E.redirectCount = 0, E.checkStatus = \_ _ -> Nothing }
+      req = req0 { E.redirectCount = 0, E.checkStatus = \_ _ _ -> Nothing }
   case (from_file, literal) of
     (Nothing,Nothing) -> return req { E.method = maybe "GET" B.pack method }
     (Just f,Nothing) -> do

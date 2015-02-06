@@ -18,11 +18,11 @@ module Network.HTTP.LoadTest.Types
     ) where
 
 import Control.Applicative ((<$>), (<*>), pure, empty)
-import Control.Arrow (first)
+import Control.Arrow ((***))
 import Control.DeepSeq (NFData(rnf))
 import Control.Exception (Exception, IOException, SomeException, try)
 import Data.Aeson.Types (Value(..), FromJSON(..), ToJSON(..), (.:), (.=), object)
-import Data.Conduit (ResourceT)
+
 import Data.Data (Data)
 import Data.Hashable (Hashable)
 import Data.Typeable (Typeable)
@@ -36,7 +36,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 
 newtype Req = Req {
-      fromReq :: Request (ResourceT IO)
+      fromReq :: Request
     } deriving (Typeable)
 
 instance Show Req where
@@ -54,10 +54,11 @@ instance Show Req where
 
 instance ToJSON Req where
     toJSON req@(Req req') = toJSON [ "url"     .= show req
-                                   , "method"  .= method req'
+                                   , "method"  .= (B.unpack $ method req')
                                    , "headers" .= headers req'
                                    ]
-        where headers = map (first CI.original) . requestHeaders
+        where headers =
+                map (B.unpack . CI.original *** B.unpack) . requestHeaders
 
 instance FromJSON Req where
     parseJSON (Object v) = do
@@ -68,8 +69,8 @@ instance FromJSON Req where
                           Left (_::SomeException) -> empty
                           Right r -> return r
       return . Req $ req {
-                        method = m
-                      , requestHeaders = map (first CI.mk) h
+                        method = B.pack m
+                      , requestHeaders = map (CI.mk . B.pack *** B.pack) h
                       }
     parseJSON _ = empty
 
