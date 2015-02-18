@@ -100,7 +100,7 @@ fromArgs Args{..} req =
     , LoadTest.numRequests = num_requests
     , LoadTest.requestsPerSecond = requests_per_second
     , LoadTest.timeout = timeout
-    , LoadTest.request = RequestGeneratorConstant $ Req req
+    , LoadTest.requests = [RequestGeneratorConstant $ Req req]
     }
 
 main :: IO ()

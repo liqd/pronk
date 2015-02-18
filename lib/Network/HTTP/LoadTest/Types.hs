@@ -22,7 +22,7 @@ import Control.Applicative ((<$>), (<*>), pure, empty)
 import Control.Arrow ((***))
 import Control.DeepSeq (NFData(rnf))
 import Control.Exception (Exception, IOException, SomeException, try)
-import Data.Aeson.Types (Value(..), FromJSON(..), ToJSON(..), (.:), (.=), object, Parser)
+import Data.Aeson.Types (Value(..), FromJSON(..), ToJSON(..), (.:), (.=), object)
 
 import Data.Data (Data)
 import Data.Hashable (Hashable)
@@ -81,12 +81,12 @@ data Config = Config {
     , numRequests :: Int
     , requestsPerSecond :: Double
     , timeout :: Double
-    , request :: RequestGenerator
+    , requests :: [RequestGenerator]
     } deriving (Show, Typeable)
 
 data RequestGenerator where
     RequestGeneratorConstant :: Req -> RequestGenerator
-    RequestGeneratorStateMachine :: T.Text -> [state] -> (state -> (Req, Response L.ByteString -> state)) -> RequestGenerator
+    RequestGeneratorStateMachine :: T.Text -> state -> (state -> (Req, Response L.ByteString -> state)) -> RequestGenerator
 
 instance Show RequestGenerator where
     show (RequestGeneratorConstant r) = show r
@@ -105,7 +105,7 @@ instance ToJSON Config where
                         , "numRequests" .= numRequests
                         , "requestsPerSecond" .= requestsPerSecond
                         , "timeout" .= timeout
-                        , "request" .= request
+                        , "requests" .= requests
                         ]
 
 instance FromJSON Config where
@@ -114,7 +114,7 @@ instance FromJSON Config where
                            v .: "numRequests" <*>
                            v .: "requestsPerSecond" <*>
                            v .: "timeout" <*>
-                           v .: "request"
+                           v .: "requests"
     parseJSON _ = empty
 
 emptyReq :: Req
@@ -127,7 +127,7 @@ defaultConfig = Config {
               , numRequests = 1
               , requestsPerSecond = 0
               , timeout = 60
-              , request = RequestGeneratorConstant emptyReq
+              , requests = [RequestGeneratorConstant emptyReq]
               }
 
 data Event =
