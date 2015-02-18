@@ -20,7 +20,6 @@ import Data.List (nub)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import Network.HTTP.Conduit
 import Network.HTTP.LoadTest.Types
-import Prelude hiding (catch)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
@@ -49,18 +48,15 @@ run cfg@Config{..} = do
 
 client :: Config -> Manager -> POSIXTime
        -> ResourceT IO (V.Vector Summary)
-client Config{..} mgr interval = loop state 0 []
+client Config{..} mgr interval = loop request 0 []
   where
-    state = case request of
-        RequestGeneratorConstant _ -> ()
-        RequestGeneratorStateMachine _ s _ -> s
-
-    loop !state !n acc
+    loop !request_ !n acc
         | n == numRequests = return (V.fromList acc)
         | otherwise = do
-      let (req, newState) = case request of
-            RequestGeneratorConstant r -> (r, ())
-            RequestGeneratorStateMachine _ state trans -> trans state
+      let (req, newRequest) = case request_ of
+            nr@(RequestGeneratorConstant r) -> (r, const nr)
+            RequestGeneratorStateMachine name state trans -> case trans state of
+                (r, s) -> (r, \ resp -> RequestGeneratorStateMachine name (s resp) trans)
 
       now <- liftIO getPOSIXTime
       !(evt, resp) <- timedRequest req
@@ -74,7 +70,7 @@ client Config{..} mgr interval = loop state 0 []
                }
       when (elapsed < interval) $
         liftIO . threadDelay . truncate $ (interval - elapsed) * 1000000
-      loop (newState resp) (n+1) (s:acc)
+      loop (maybe request_ newRequest resp) (n+1) (s:acc)
 
     issueRequest :: Req -> ResourceT IO (Response L.ByteString)
     issueRequest req = httpLbs (clear $ fromReq req) mgr
@@ -82,18 +78,18 @@ client Config{..} mgr interval = loop state 0 []
       where clear r = r { checkStatus = \_ _ _ -> Nothing
                         , responseTimeout = Nothing
                         }
-    timedRequest :: Req -> ResourceT IO Event
+    timedRequest :: Req -> ResourceT IO (Event, Maybe (Response L.ByteString))
     timedRequest req
       | timeout == 0 = respEvent <$> issueRequest req
       | otherwise    = do
-      maybeResp <- T.timeout (truncate (timeout * 1e6)) issueRequest
+      maybeResp <- T.timeout (truncate (timeout * 1e6)) $ issueRequest req
       case maybeResp of
-        Just resp -> return (respEvent resp, resp)
-        _         -> return Timeout
+        Just resp -> return $ respEvent resp
+        _         -> return (Timeout, Nothing)
 
-respEvent :: Response L.ByteString -> Event
+respEvent :: Response L.ByteString -> (Event, Maybe (Response L.ByteString))
 respEvent resp =
-    HttpResponse {
+    (HttpResponse {
       respCode = H.statusCode $ responseStatus resp
     , respContentLength = fromIntegral . L.length . responseBody $ resp
-    }
+    }, Just resp)

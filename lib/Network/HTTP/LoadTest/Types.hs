@@ -31,6 +31,7 @@ import Network.HTTP.Conduit (Request(..), Response(..), parseUrl)
 import GHC.Generics (Generic)
 import System.IO.Unsafe
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -85,7 +86,7 @@ data Config = Config {
 
 data RequestGenerator where
     RequestGeneratorConstant :: Req -> RequestGenerator
-    RequestGeneratorStateMachine :: T.Text -> state -> (state -> (Req, Response B.ByteString -> state)) -> RequestGenerator
+    RequestGeneratorStateMachine :: T.Text -> state -> (state -> (Req, Response L.ByteString -> state)) -> RequestGenerator
 
 instance Show RequestGenerator where
     show (RequestGeneratorConstant r) = show r
