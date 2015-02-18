@@ -47,13 +47,13 @@ run cfg@Config{..} = do
              [] -> Right . G.modify I.sort . V.concat $ vs
              _  -> Left (nub errs)
 
-client :: Config state -> Manager -> POSIXTime
+client :: Config -> Manager -> POSIXTime
        -> ResourceT IO (V.Vector Summary)
 client Config{..} mgr interval = loop state 0 []
   where
     state = case request of
         RequestGeneratorConstant _ -> ()
-        RequestGeneratorStateMachine _ state _ -> state
+        RequestGeneratorStateMachine _ s _ -> s
 
     loop !state !n acc
         | n == numRequests = return (V.fromList acc)
@@ -63,11 +63,8 @@ client Config{..} mgr interval = loop state 0 []
             RequestGeneratorStateMachine _ state trans -> trans state
 
       now <- liftIO getPOSIXTime
-      !evt <- timedRequest req
+      !(evt, resp) <- timedRequest req
       now' <- liftIO getPOSIXTime
-
-      let state' = case evt of
-              HttpResponse _ _ full -> newState full
 
       let elapsed = now' - now
           !s = Summary {
@@ -77,7 +74,7 @@ client Config{..} mgr interval = loop state 0 []
                }
       when (elapsed < interval) $
         liftIO . threadDelay . truncate $ (interval - elapsed) * 1000000
-      loop state' (n+1) (s:acc)
+      loop (newState resp) (n+1) (s:acc)
 
     issueRequest :: Req -> ResourceT IO (Response L.ByteString)
     issueRequest req = httpLbs (clear $ fromReq req) mgr
@@ -91,7 +88,7 @@ client Config{..} mgr interval = loop state 0 []
       | otherwise    = do
       maybeResp <- T.timeout (truncate (timeout * 1e6)) issueRequest
       case maybeResp of
-        Just resp -> return (respEvent resp)
+        Just resp -> return (respEvent resp, resp)
         _         -> return Timeout
 
 respEvent :: Response L.ByteString -> Event
@@ -99,5 +96,4 @@ respEvent resp =
     HttpResponse {
       respCode = H.statusCode $ responseStatus resp
     , respContentLength = fromIntegral . L.length . responseBody $ resp
-    , respFull = resp
     }

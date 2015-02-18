@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, DeriveGeneric, OverloadedStrings,
-    RecordWildCards, ScopedTypeVariables, ViewPatterns #-}
+    RecordWildCards, ScopedTypeVariables, ViewPatterns, GADTs #-}
 
 module Network.HTTP.LoadTest.Types
     (
@@ -22,12 +22,12 @@ import Control.Applicative ((<$>), (<*>), pure, empty)
 import Control.Arrow ((***))
 import Control.DeepSeq (NFData(rnf))
 import Control.Exception (Exception, IOException, SomeException, try)
-import Data.Aeson.Types (Value(..), FromJSON(..), ToJSON(..), (.:), (.=), object)
+import Data.Aeson.Types (Value(..), FromJSON(..), ToJSON(..), (.:), (.=), object, Parser)
 
 import Data.Data (Data)
 import Data.Hashable (Hashable)
 import Data.Typeable (Typeable)
-import Network.HTTP.Conduit (Request(..), parseUrl)
+import Network.HTTP.Conduit (Request(..), Response(..), parseUrl)
 import GHC.Generics (Generic)
 import System.IO.Unsafe
 import qualified Data.ByteString.Char8 as B
@@ -75,22 +75,28 @@ instance FromJSON Req where
                       }
     parseJSON _ = empty
 
-data Config state = Config state {
+data Config = Config {
       concurrency :: Int
     , numRequests :: Int
     , requestsPerSecond :: Double
     , timeout :: Double
-    , requests :: RequestGenerator state
+    , request :: RequestGenerator
     } deriving (Show, Typeable)
 
-data RequestGenerator state =
-    RequestGeneratorConstant Req
-  | RequestGeneratorStateMachine
-      { requestGeneratorSMName         :: String
-      , requestGeneratorSMInitialState :: state
-      , requestGeneratorSMTrans        :: state -> (Req, Response -> state)
-      }
-  deriving (Eq, Show)
+data RequestGenerator where
+    RequestGeneratorConstant :: Req -> RequestGenerator
+    RequestGeneratorStateMachine :: T.Text -> state -> (state -> (Req, Response B.ByteString -> state)) -> RequestGenerator
+
+instance Show RequestGenerator where
+    show (RequestGeneratorConstant r) = show r
+    show (RequestGeneratorStateMachine name _ _) = "[request generator: " ++ show name ++ "]"
+
+instance ToJSON RequestGenerator where
+    toJSON (RequestGeneratorConstant r) = toJSON r
+    toJSON (RequestGeneratorStateMachine name _ _) = String . T.pack $ "[request generator: " ++ show name ++ "]"
+
+instance FromJSON RequestGenerator where
+    parseJSON = fmap RequestGeneratorConstant . parseJSON
 
 instance ToJSON Config where
     toJSON Config{..} = object [
@@ -120,14 +126,13 @@ defaultConfig = Config {
               , numRequests = 1
               , requestsPerSecond = 0
               , timeout = 60
-              , request = emptyReq
+              , request = RequestGeneratorConstant emptyReq
               }
 
 data Event =
     HttpResponse {
       respCode :: {-# UNPACK #-} !Int
     , respContentLength :: {-# UNPACK #-} !Int
-    , respFull :: !Response
     } | Timeout
     deriving (Eq, Ord, Read, Show, Typeable, Data, Generic)
 
