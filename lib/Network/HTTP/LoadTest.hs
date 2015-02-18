@@ -50,10 +50,10 @@ client :: Config -> Manager -> POSIXTime
        -> ResourceT IO (V.Vector Summary)
 client Config{..} mgr interval = loop request 0 []
   where
-    loop !request_ !n acc
+    loop !requestGenerator !n acc
         | n == numRequests = return (V.fromList acc)
         | otherwise = do
-      let (req, newRequest) = case request_ of
+      let (req, newRequestGenerator) = case requestGenerator of
             nr@(RequestGeneratorConstant r) -> (r, const nr)
             RequestGeneratorStateMachine name state trans -> case trans state of
                 (r, s) -> (r, \ resp -> RequestGeneratorStateMachine name (s resp) trans)
@@ -70,7 +70,7 @@ client Config{..} mgr interval = loop request 0 []
                }
       when (elapsed < interval) $
         liftIO . threadDelay . truncate $ (interval - elapsed) * 1000000
-      loop (maybe request_ newRequest resp) (n+1) (s:acc)
+      loop (maybe requestGenerator newRequestGenerator resp) (n+1) (s:acc)
 
     issueRequest :: Req -> ResourceT IO (Response L.ByteString)
     issueRequest req = httpLbs (clear $ fromReq req) mgr
