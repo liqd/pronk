@@ -6,6 +6,7 @@ module Network.HTTP.LoadTest.Types
     -- * Running a load test
       Config(..)
     , Req(..)
+    , RequestGenerator(..)
     , defaultConfig
     , NetworkError(..)
     -- * Results
@@ -74,13 +75,22 @@ instance FromJSON Req where
                       }
     parseJSON _ = empty
 
-data Config = Config {
+data Config state = Config state {
       concurrency :: Int
     , numRequests :: Int
     , requestsPerSecond :: Double
     , timeout :: Double
-    , request :: Req
+    , requests :: RequestGenerator state
     } deriving (Show, Typeable)
+
+data RequestGenerator state =
+    RequestGeneratorConstant Req
+  | RequestGeneratorStateMachine
+      { requestGeneratorSMName         :: String
+      , requestGeneratorSMInitialState :: state
+      , requestGeneratorSMTrans        :: state -> (Req, Response -> state)
+      }
+  deriving (Eq, Show)
 
 instance ToJSON Config where
     toJSON Config{..} = object [
@@ -117,6 +127,7 @@ data Event =
     HttpResponse {
       respCode :: {-# UNPACK #-} !Int
     , respContentLength :: {-# UNPACK #-} !Int
+    , respFull :: !Response
     } | Timeout
     deriving (Eq, Ord, Read, Show, Typeable, Data, Generic)
 

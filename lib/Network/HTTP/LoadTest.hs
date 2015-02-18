@@ -47,16 +47,28 @@ run cfg@Config{..} = do
              [] -> Right . G.modify I.sort . V.concat $ vs
              _  -> Left (nub errs)
 
-client :: Config -> Manager -> POSIXTime
+client :: Config state -> Manager -> POSIXTime
        -> ResourceT IO (V.Vector Summary)
-client Config{..} mgr interval = loop 0 []
+client Config{..} mgr interval = loop state 0 []
   where
-    loop !n acc
+    state = case request of
+        RequestGeneratorConstant _ -> ()
+        RequestGeneratorStateMachine _ state _ -> state
+
+    loop !state !n acc
         | n == numRequests = return (V.fromList acc)
         | otherwise = do
+      let (req, newState) = case request of
+            RequestGeneratorConstant r -> (r, ())
+            RequestGeneratorStateMachine _ state trans -> trans state
+
       now <- liftIO getPOSIXTime
-      !evt <- timedRequest
+      !evt <- timedRequest req
       now' <- liftIO getPOSIXTime
+
+      let state' = case evt of
+              HttpResponse _ _ full -> newState full
+
       let elapsed = now' - now
           !s = Summary {
                  summEvent = evt
@@ -65,16 +77,17 @@ client Config{..} mgr interval = loop 0 []
                }
       when (elapsed < interval) $
         liftIO . threadDelay . truncate $ (interval - elapsed) * 1000000
-      loop (n+1) (s:acc)
-    issueRequest :: ResourceT IO (Response L.ByteString)
-    issueRequest = httpLbs (clear $ fromReq request) mgr
+      loop state' (n+1) (s:acc)
+
+    issueRequest :: Req -> ResourceT IO (Response L.ByteString)
+    issueRequest req = httpLbs (clear $ fromReq req) mgr
                    `catch` (throwIO . NetworkError)
       where clear r = r { checkStatus = \_ _ _ -> Nothing
                         , responseTimeout = Nothing
                         }
-    timedRequest :: ResourceT IO Event
-    timedRequest
-      | timeout == 0 = respEvent <$> issueRequest
+    timedRequest :: Req -> ResourceT IO Event
+    timedRequest req
+      | timeout == 0 = respEvent <$> issueRequest req
       | otherwise    = do
       maybeResp <- T.timeout (truncate (timeout * 1e6)) issueRequest
       case maybeResp of
@@ -86,4 +99,5 @@ respEvent resp =
     HttpResponse {
       respCode = H.statusCode $ responseStatus resp
     , respContentLength = fromIntegral . L.length . responseBody $ resp
+    , respFull = resp
     }
