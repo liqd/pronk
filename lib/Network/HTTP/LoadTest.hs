@@ -6,6 +6,7 @@ module Network.HTTP.LoadTest
       NetworkError(..)
     , Config(..)
     , Req(..)
+    , RequestGenerator(..)
     , defaultConfig
     , run
     ) where

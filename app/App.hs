@@ -16,7 +16,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy.Builder (toLazyText)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Version (showVersion)
-import Network.HTTP.LoadTest (NetworkError(..), Req(..))
+import Network.HTTP.LoadTest (NetworkError(..), Req(..), RequestGenerator(..))
 import Network.HTTP.LoadTest.Analysis (analyseBasic, analyseFull)
 import Network.HTTP.LoadTest.Environment (environment)
 import Network.HTTP.LoadTest.Report
@@ -100,7 +100,7 @@ fromArgs Args{..} req =
     , LoadTest.numRequests = num_requests
     , LoadTest.requestsPerSecond = requests_per_second
     , LoadTest.timeout = timeout
-    , LoadTest.request = Req req
+    , LoadTest.request = RequestGeneratorConstant $ Req req
     }
 
 main :: IO ()

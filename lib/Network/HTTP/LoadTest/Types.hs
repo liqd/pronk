@@ -86,7 +86,7 @@ data Config = Config {
 
 data RequestGenerator where
     RequestGeneratorConstant :: Req -> RequestGenerator
-    RequestGeneratorStateMachine :: T.Text -> state -> (state -> (Req, Response L.ByteString -> state)) -> RequestGenerator
+    RequestGeneratorStateMachine :: T.Text -> [state] -> (state -> (Req, Response L.ByteString -> state)) -> RequestGenerator
 
 instance Show RequestGenerator where
     show (RequestGeneratorConstant r) = show r
