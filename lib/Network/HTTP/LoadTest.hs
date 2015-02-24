@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, RecordWildCards #-}
+{-# LANGUAGE BangPatterns, RecordWildCards, OverloadedStrings #-}
 
 module Network.HTTP.LoadTest
     (
@@ -9,26 +9,34 @@ module Network.HTTP.LoadTest
     , RequestGenerator(..)
     , defaultConfig
     , run
+    , timed
     ) where
 
 import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Chan (newChan, readChan, writeChan)
+import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
+import Control.Exception (finally)
 import Control.Exception.Lifted (catch, throwIO, try)
 import Control.Monad (forM_, replicateM, when)
 import Data.Either (partitionEithers)
 import Data.List (nub)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
+import Data.Text (Text)
+import qualified Data.Text.Format as T
 import Network.HTTP.Conduit
 import Network.HTTP.LoadTest.Types
+import Network.HTTP.LoadTest.Report (buildTime)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic as G
+import System.CPUTime (getCPUTime)
 import qualified System.Timeout.Lifted as T
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (ResourceT)
 import qualified Network.HTTP.Types as H
+import System.Console.CmdArgs (whenNormal)
 
 run :: Config -> IO (Either [NetworkError] (V.Vector Summary))
 run cfg@Config{..} = do
@@ -92,6 +100,29 @@ client Config{..} rgSelector mgr interval = loop initialRequestGenerator 0 []
       case maybeResp of
         Just resp -> return $ respEvent resp
         _         -> return (Timeout, Nothing)
+
+timed :: Text -> IO a -> IO (a,Double)
+timed desc act = do
+  t <- newEmptyMVar
+  startCPU <- getCPUTime
+  startWall <- getPOSIXTime
+  ret <- act `finally` do
+    endCPU <- getCPUTime
+    endWall <- getPOSIXTime
+    let elapsedCPU  = fromIntegral (endCPU - startCPU) / 1e12
+        elapsedWall = realToFrac $ endWall - startWall
+        ratio = elapsedCPU / elapsedWall
+    whenNormal $
+      -- Try to work around the 64-bit Mac getCPUTime bug
+      -- http://hackage.haskell.org/trac/ghc/ticket/4970
+      if ratio > 0 && ratio < 32
+      then T.print "{} in {} ({}% CPU)\n"
+               (desc, buildTime 4 elapsedWall,
+                T.fixed 1 $ 100 * elapsedCPU / elapsedWall)
+      else T.print "{} in {}\n"
+               (desc, buildTime 4 elapsedWall)
+    putMVar t elapsedWall
+  ((,) ret) <$> takeMVar t
 
 respEvent :: Response L.ByteString -> (Event, Maybe (Response L.ByteString))
 respEvent resp =
