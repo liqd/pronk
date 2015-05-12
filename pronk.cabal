@@ -59,7 +59,7 @@ library
     filepath,
     ghc-prim >= 0.2.0.0,
     hashable >= 1.2.0.2,
-    hastache == 0.4.2,
+    hastache >= 0.4.2,
     http-conduit >= 2.0,
     http-types,
     lifted-base,
