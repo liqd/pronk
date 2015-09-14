@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable, OverloadedStrings, RecordWildCards, NoImplicitPrelude #-}
 
 module Network.HTTP.LoadTest.Environment
     (
@@ -12,6 +12,7 @@ import Data.Data (Data)
 import Data.Typeable (Typeable)
 import GHC.Conc (numCapabilities)
 import System.PosixCompat.Unistd (SystemID(..), getSystemID)
+import Prelude hiding ((<$>), (<*>))
 
 data Environment = Environment {
       osName :: String

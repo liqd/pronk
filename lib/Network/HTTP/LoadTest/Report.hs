@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, RecordWildCards, RelaxedPolyRec, ViewPatterns #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, RecordWildCards, RelaxedPolyRec, ViewPatterns, ScopedTypeVariables, NoImplicitPrelude #-}
 
 module Network.HTTP.LoadTest.Report
     (
@@ -27,7 +27,7 @@ import Data.Vector (Vector)
 import Network.HTTP.LoadTest.Types (Analysis(..), Basic(..), Event(..),
                                     Summary(..), summEnd)
 import Paths_pronk (getDataFileName)
-import Prelude hiding (print)
+import Prelude hiding (print, mappend, mconcat, mempty)
 import Statistics.Function (sort)
 import Statistics.Resampling.Bootstrap (Estimate(..))
 import Statistics.Sample.KernelDensity (kde)
@@ -36,10 +36,10 @@ import System.IO.Unsafe (unsafePerformIO)
 import Text.Hastache (MuContext, MuType(..))
 import Text.Hastache.Context (mkGenericContext)
 import qualified Criterion.Report as R
-import qualified Data.ByteString.Lazy as L
 import qualified Data.HashMap.Strict as H
 import qualified Data.List as List
 import qualified Data.MeldableHeap as Q
+import qualified Data.Text.Lazy.IO as ST
 import qualified Data.Text.Format as T
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
@@ -132,8 +132,8 @@ templateDir = unsafePerformIO $ getDataFileName "templates"
 writeReport :: (Data a) => FilePath -> Handle -> Double -> Analysis a -> IO ()
 writeReport template h elapsed a@Analysis{..} = do
   let context :: MuContext IO
-      context "include" = return . MuLambdaM $
-                          R.includeFile [templateDir, R.templateDir]
+      context "include" = R.getTemplateDir >>= \td -> return . MuLambdaM $
+                          R.includeFile [templateDir, td]
       context "elapsed"   = return $ MuVariable elapsed
       context "latKdeTimes" = return $ R.vector "x" latKdeTimes
       context "latKdePDF" = return $ R.vector "x" latKdePDF
@@ -151,7 +151,7 @@ writeReport template h elapsed a@Analysis{..} = do
       conc = graphConcurrency lats
   tpl <- R.loadTemplate [".",templateDir] template
   bs <- H.hastacheStr H.defaultConfig tpl context
-  L.hPutStr h bs
+  ST.hPutStr h bs
 
 data T = T (U.Vector Double) {-# UNPACK #-} !Double
 
@@ -169,7 +169,7 @@ graphThroughput slices elapsed sumv =
                  j = i+1
         timeSlice = elapsed / fromIntegral slices
         start = summStart . G.head $ sumv
-        endv = G.convert . sort . G.map summEnd $ sumv
+        endv :: U.Vector Double = sort . G.convert . G.map summEnd $ sumv
 
 data S = S {
       fstS :: {-# UNPACK #-} !Double

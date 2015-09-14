@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, DeriveGeneric, OverloadedStrings,
-    RecordWildCards, ScopedTypeVariables, ViewPatterns, GADTs #-}
+    RecordWildCards, ScopedTypeVariables, ViewPatterns, GADTs,
+    NoImplicitPrelude #-}
 
 module Network.HTTP.LoadTest.Types
     (
@@ -30,6 +31,7 @@ import Data.Typeable (Typeable)
 import Network.HTTP.Conduit (Request(..), Response(..), parseUrl)
 import GHC.Generics (Generic)
 import System.IO.Unsafe
+import Prelude hiding ((<$>), (<*>), pure)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
@@ -193,7 +195,7 @@ instance (NFData a) => NFData (Analysis a) where
 data Basic = Basic {
       mean :: {-# UNPACK #-} !Double
     , stdDev :: {-# UNPACK #-} !Double
-    } deriving (Eq, Show, Typeable, Data)
+    } deriving (Eq, Show, Typeable, Data, Generic)
 
 instance NFData Basic
 

@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, DeriveDataTypeable, OverloadedStrings,
-    RecordWildCards, ScopedTypeVariables #-}
+    RecordWildCards, ScopedTypeVariables, FlexibleContexts #-}
 
 module Main (main) where
 
