@@ -74,7 +74,7 @@ client Config{..} rgSelector mgr interval = loop initialRequestGenerator 0 []
 
       now <- liftIO getPOSIXTime
       !(evt, resp) <- timedRequest req
-      now' <- liftIO getPOSIXTime
+      now' <- (maybe 0 (L.length . responseBody) resp) `seq` liftIO getPOSIXTime
 
       let elapsed = now' - now
           !s = Summary {
