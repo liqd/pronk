@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, DeriveDataTypeable, OverloadedStrings,
-    RecordWildCards, ScopedTypeVariables, FlexibleContexts #-}
+    RecordWildCards, ScopedTypeVariables, FlexibleContexts, NoImplicitPrelude #-}
 
 module Main (main) where
 
@@ -8,7 +8,7 @@ import Control.Concurrent.MVar
 import Control.DeepSeq (rnf)
 import Control.Exception (bracket, catch, evaluate, finally)
 import Control.Monad (forM_, unless)
-import Data.Aeson ((.=), encode, object)
+import Data.Aeson ((.=), encode, object, toJSON)
 import Data.Char (toLower)
 import Data.Maybe (catMaybes)
 import Data.Text (Text, pack)
@@ -26,13 +26,13 @@ import System.CPUTime (getCPUTime)
 import System.Console.CmdArgs
 import System.Exit (ExitCode(ExitFailure), exitWith)
 import System.IO (Handle, IOMode(..), hClose, hPutStrLn, openFile, stderr, stdout)
-import qualified Data.Aeson.Generic as G
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.Text.Format as T
 import qualified Data.Text.Lazy.IO as TL
 import qualified Network.HTTP.Conduit as E
 import qualified Network.HTTP.LoadTest as LoadTest
+import Prelude hiding ((<$>))
 
 data Args = Args {
       concurrency :: Int
@@ -126,7 +126,7 @@ main = withSocketsDo $ do
       env <- environment
       let dump = object [ "config" .= cfg
                         , "environment" .= env
-                        , "analysis" .= G.toJSON analysis ]
+                        , "analysis" .= toJSON analysis ]
       maybeWriteFile json $ \h -> BL.hPut h (BL.append (encode dump) "\n")
       maybeWriteFile dump_events $ \h ->
           TL.hPutStr h . toLazyText . csvEvents $ results

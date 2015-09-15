@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, RecordWildCards, OverloadedStrings, NoImplicitPrelude #-}
 
 module Network.HTTP.LoadTest
     (
@@ -19,6 +19,7 @@ import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
 import Control.Exception (finally)
 import Control.Exception.Lifted (catch, throwIO, try)
 import Control.Monad (forM_, replicateM, when)
+import Control.Monad.Trans.Resource (runResourceT)
 import Data.Either (partitionEithers)
 import Data.List (nub)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
@@ -37,6 +38,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (ResourceT)
 import qualified Network.HTTP.Types as H
 import System.Console.CmdArgs (whenNormal)
+import Prelude hiding ((<$>))
 
 run :: Config -> IO (Either [NetworkError] (V.Vector Summary))
 run cfg@Config{..} = do
@@ -47,9 +49,10 @@ run cfg@Config{..} = do
                 | otherwise = realToFrac (fromIntegral concurrency /
                                           requestsPerSecond)
   ch <- newChan
-  forM_ (zip reqs [0..]) $ \(numReqs, rgSelector) -> forkIO . withManager $ \mgr -> do
+  forM_ (zip reqs [0..]) $ \(numReqs, rgSelector) -> forkIO $ do
+    mgr <- newManager tlsManagerSettings
     let cfg' = cfg { numRequests = numReqs }
-    liftIO . writeChan ch =<< try (client cfg' rgSelector mgr interval)
+    liftIO . writeChan ch =<< (try . runResourceT . client cfg' rgSelector mgr $ interval)
   (errs,vs) <- partitionEithers <$> replicateM concurrency (readChan ch)
   return $ case errs of
              [] -> Right . G.modify I.sort . V.concat $ vs
