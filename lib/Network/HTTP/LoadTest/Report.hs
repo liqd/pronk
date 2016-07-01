@@ -144,7 +144,7 @@ writeReport template h elapsed a@Analysis{..} = do
       context "concTimes" = return $ R.vector "x" . U.fromList $ map fstS conc
       context "concValues" = return $ R.vector "x" . U.fromList $ map sndS conc
       context n = mkGenericContext a n
-      (latKdeTimes,latKdePDF) = kde 128 . G.convert . G.map summElapsed $ latValues
+      (latKdeTimes :: U.Vector Double,latKdePDF) = kde 128 . G.convert . G.map summElapsed $ latValues
       lats = G.map (\s -> s { summStart = summStart s - t }) latValues
           where t = summStart . G.head $ latValues
       (thrTimes,thrValues) = graphThroughput (min (G.length latValues) 50) elapsed latValues
