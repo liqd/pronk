@@ -57,9 +57,9 @@ instance Show Req where
                      | otherwise     = B.pack $ ":" ++ show (port req)
 
 instance ToJSON Req where
-    toJSON req@(Req req') = toJSON [ "url"     .= show req
-                                   , "method"  .= (B.unpack $ method req')
-                                   , "headers" .= headers req'
+    toJSON req@(Req req') = object [ "url"     .= toJSON (show req)
+                                   , "method"  .= toJSON (B.unpack $ method req')
+                                   , "headers" .= toJSON (headers req')
                                    ]
         where headers =
                 map (B.unpack . CI.original *** B.unpack) . requestHeaders
